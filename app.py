@@ -4,6 +4,7 @@ import pytesseract
 from pdf2image import convert_from_path
 from PIL import Image
 import requests
+import tempfile
 
 # Configuración de la API de Hugging Face
 API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
@@ -13,7 +14,13 @@ headers = {"Authorization": f"Bearer {API_TOKEN}"}
 # Función para hacer OCR en PDF escaneado
 def extract_text_from_scanned_pdf(pdf_file):
     text = ""
-    images = convert_from_path(pdf_file)  # Convierte cada página a una imagen
+    # Guarda temporalmente el archivo subido
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+        temp_pdf.write(pdf_file.read())
+        temp_pdf_path = temp_pdf.name
+
+    # Convierte cada página del archivo PDF en una imagen
+    images = convert_from_path(temp_pdf_path)
     for image in images:
         text += pytesseract.image_to_string(image)  # Extrae el texto de la imagen usando OCR
     return text
@@ -28,21 +35,21 @@ def extract_data_with_gptneo(text):
     prompt = f"""
     Extrae y organiza los datos en una tabla. En este PDF escaneado, los datos de interés están en ubicaciones específicas.
     Por favor, sigue estas instrucciones para extraer:
-    - NOMBRE DE LA LICITACIÓN: (Indica el lugar específico)
-    - ENTIDAD CONVOCANTE: (Indica el lugar específico)
-    - PROCEDIMIENTO DE CONTRATACIÓN: (Indica el lugar específico)
-    - OFERENTES: (Indica el lugar específico)
-    - MONTO DE LOS OFERENTES: (Indica el lugar específico)
-    - CANTIDAD DE OFERENTES: (Indica el lugar específico)
-    - CANTIDAD DE CONSORCIOS: (Indica el lugar específico)
-    - CANTIDAD DE EMPRESAS: (Indica el lugar específico)
-    - MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE: (Indica el lugar específico)
-    - FINANCIADOR: (Indica el lugar específico)
+    - NOMBRE DE LA LICITACIÓN
+    - ENTIDAD CONVOCANTE
+    - PROCEDIMIENTO DE CONTRATACIÓN
+    - OFERENTES
+    - MONTO DE LOS OFERENTES
+    - CANTIDAD DE OFERENTES
+    - CANTIDAD DE CONSORCIOS
+    - CANTIDAD DE EMPRESAS
+    - MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE
+    - FINANCIADOR
 
     Texto:
     {text}
     """
-
+    
     response = query({"inputs": prompt, "parameters": {"max_new_tokens": 500}})
     
     if response and "generated_text" in response[0]:
@@ -98,4 +105,5 @@ if pdf_file:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
+
 
