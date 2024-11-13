@@ -5,7 +5,7 @@ import pandas as pd
 import io
 
 # Coloca tu API Token de Hugging Face aquí
-API_TOKEN = "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"  # Reemplaza con tu clave de API
+API_TOKEN = "tu_clave_de_api_aqui"  # Reemplaza con tu clave de API
 headers = {
     "Authorization": f"Bearer {API_TOKEN}"
 }
@@ -16,7 +16,8 @@ model_url = "https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-c
 # Función para extraer texto del PDF
 def extract_text_from_pdf(pdf_file):
     text = ""
-    with fitz.open(pdf_file) as doc:  # Abre el PDF usando PyMuPDF
+    # Abrir el archivo PDF desde el objeto en memoria (BytesIO) en lugar de una ruta
+    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
         for page in doc:
             text += page.get_text()
     return text
@@ -99,3 +100,4 @@ if pdf_file:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
+
