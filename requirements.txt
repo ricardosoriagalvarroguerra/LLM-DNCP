@@ -1,7 +1,5 @@
 streamlit
 requests
-pymupdf
 pandas
 pytesseract
 pillow
-pdf2image
