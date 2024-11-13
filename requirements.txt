@@ -2,5 +2,3 @@ streamlit
 requests
 pymupdf
 pandas
-huggingface_hub
-transformers
