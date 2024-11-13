@@ -1,17 +1,11 @@
 import streamlit as st
-import requests
 import fitz  # PyMuPDF para extracción de texto de PDF
 import pandas as pd
-import io
+from huggingface_hub import InferenceClient
 
-# Coloca tu API Token de Hugging Face aquí
-API_TOKEN = "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"  # Reemplaza con tu clave de API
-headers = {
-    "Authorization": f"Bearer {API_TOKEN}"
-}
-
-# URL del modelo Llama 2 7B Chat en Hugging Face
-model_url = "https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf"
+# Configuración de la API de Hugging Face
+API_TOKEN = "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"  # Reemplaza con tu nuevo token de lectura
+client = InferenceClient(api_key=API_TOKEN)
 
 # Función para extraer texto del PDF
 def extract_text_from_pdf(pdf_file):
@@ -22,36 +16,44 @@ def extract_text_from_pdf(pdf_file):
             text += page.get_text()
     return text
 
-# Función para enviar el texto al modelo Llama 2 y extraer datos
+# Función para extraer datos usando el modelo Llama 2
 def extract_data_with_llama2(text):
-    prompt = f"""
-    Extrae y organiza los datos en una tabla con las siguientes columnas:
-    - NOMBRE DE LA LICITACIÓN
-    - ENTIDAD CONVOCANTE
-    - PROCEDIMIENTO DE CONTRATACIÓN
-    - OFERENTES
-    - MONTO DE LOS OFERENTES
-    - CANTIDAD DE OFERENTES
-    - CANTIDAD DE CONSORCIOS
-    - CANTIDAD DE EMPRESAS
-    - MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE
-    - FINANCIADOR
+    messages = [
+        {
+            "role": "user",
+            "content": f"""
+            Extrae y organiza los datos en una tabla con las siguientes columnas:
+            - NOMBRE DE LA LICITACIÓN
+            - ENTIDAD CONVOCANTE
+            - PROCEDIMIENTO DE CONTRATACIÓN
+            - OFERENTES
+            - MONTO DE LOS OFERENTES
+            - CANTIDAD DE OFERENTES
+            - CANTIDAD DE CONSORCIOS
+            - CANTIDAD DE EMPRESAS
+            - MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE
+            - FINANCIADOR
 
-    Texto:
-    {text}
-    """
-    
-    response = requests.post(
-        model_url,
-        headers=headers,
-        json={"inputs": prompt, "parameters": {"max_length": 1000}}
+            Texto:
+            {text}
+            """
+        }
+    ]
+
+    # Llamada al modelo Llama 2 con el cliente de inferencia
+    stream = client.chat_completions.create(
+        model="meta-llama/Llama-2-7b-chat-hf", 
+        messages=messages, 
+        max_tokens=500,
+        stream=True
     )
-    
-    if response.status_code == 200:
-        return response.json()[0]['generated_text']
-    else:
-        st.error(f"Error en la llamada al modelo: {response.status_code}")
-        return None
+
+    # Procesar la respuesta del modelo
+    response_text = ""
+    for chunk in stream:
+        response_text += chunk.choices[0].delta.content
+
+    return response_text
 
 # Función para convertir el texto estructurado en un DataFrame
 def text_to_dataframe(structured_text):
