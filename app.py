@@ -18,42 +18,35 @@ def extract_text_from_pdf(pdf_file):
 
 # Función para extraer datos usando el modelo Llama 2
 def extract_data_with_llama2(text):
-    messages = [
-        {
-            "role": "user",
-            "content": f"""
-            Extrae y organiza los datos en una tabla con las siguientes columnas:
-            - NOMBRE DE LA LICITACIÓN
-            - ENTIDAD CONVOCANTE
-            - PROCEDIMIENTO DE CONTRATACIÓN
-            - OFERENTES
-            - MONTO DE LOS OFERENTES
-            - CANTIDAD DE OFERENTES
-            - CANTIDAD DE CONSORCIOS
-            - CANTIDAD DE EMPRESAS
-            - MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE
-            - FINANCIADOR
+    prompt = f"""
+    Extrae y organiza los datos en una tabla con las siguientes columnas:
+    - NOMBRE DE LA LICITACIÓN
+    - ENTIDAD CONVOCANTE
+    - PROCEDIMIENTO DE CONTRATACIÓN
+    - OFERENTES
+    - MONTO DE LOS OFERENTES
+    - CANTIDAD DE OFERENTES
+    - CANTIDAD DE CONSORCIOS
+    - CANTIDAD DE EMPRESAS
+    - MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE
+    - FINANCIADOR
 
-            Texto:
-            {text}
-            """
-        }
-    ]
+    Texto:
+    {text}
+    """
 
-    # Llamada al modelo Llama 2 con el cliente de inferencia
-    stream = client.chat_completions.create(
-        model="meta-llama/Llama-2-7b-chat-hf", 
-        messages=messages, 
-        max_tokens=500,
-        stream=True
+    response = client.post(
+        model="meta-llama/Llama-2-7b-chat-hf",
+        inputs=prompt,
+        parameters={"max_tokens": 500}
     )
 
-    # Procesar la respuesta del modelo
-    response_text = ""
-    for chunk in stream:
-        response_text += chunk.choices[0].delta.content
-
-    return response_text
+    if "generated_text" in response:
+        return response["generated_text"]
+    else:
+        st.error("Error en la respuesta del modelo")
+        st.write(response)  # Para ver detalles del error en Streamlit
+        return None
 
 # Función para convertir el texto estructurado en un DataFrame
 def text_to_dataframe(structured_text):
@@ -102,4 +95,3 @@ if pdf_file:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
-
