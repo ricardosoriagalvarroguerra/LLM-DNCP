@@ -4,4 +4,3 @@ pymupdf
 pandas
 pytesseract
 pillow
-pdf2image
