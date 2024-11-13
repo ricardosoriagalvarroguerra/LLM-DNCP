@@ -1,29 +1,18 @@
 import streamlit as st
-import pandas as pd
 import pytesseract
-import fitz  # PyMuPDF para manejar PDFs sin Poppler
+from pdf2image import convert_from_path
 from PIL import Image
-import requests
 import io
+import requests
 
 # Configuración de la API de Hugging Face
 API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
 API_TOKEN = "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"  # Reemplaza con tu token de Hugging Face
 headers = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# Función para hacer OCR en PDF escaneado sin Poppler
-def extract_text_from_scanned_pdf(pdf_file):
-    text = ""
-    # Abre el archivo PDF usando PyMuPDF
-    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            # Renderiza la página como una imagen de alta resolución
-            pix = page.get_pixmap(dpi=300)  # DPI alto para mejor precisión OCR
-            img = Image.open(io.BytesIO(pix.tobytes("png")))
-            # Extrae el texto de la imagen usando OCR
-            text += pytesseract.image_to_string(img) + "\n"
-    return text
+# Función para hacer OCR en una imagen
+def extract_text_from_image(image):
+    return pytesseract.image_to_string(image)
 
 # Función para realizar la solicitud a la API de Hugging Face
 def query(payload):
@@ -81,12 +70,17 @@ st.title("Extractor de Datos de Licitaciones en PDF Escaneado usando GPT-Neo")
 pdf_file = st.file_uploader("Sube un archivo PDF escaneado", type=["pdf"])
 
 if pdf_file:
-    # Extraer texto del PDF escaneado
-    text = extract_text_from_scanned_pdf(pdf_file)
+    # Convertir el PDF a imágenes
+    images = convert_from_path(pdf_file)
+    
+    # Aplicar OCR a cada imagen y extraer el texto
+    all_text = ""
+    for img in images:
+        all_text += extract_text_from_image(img) + "\n"
     
     # Extraer datos usando el modelo GPT-Neo
     with st.spinner("Procesando el documento..."):
-        structured_data = extract_data_with_gptneo(text)
+        structured_data = extract_data_with_gptneo(all_text)
     
     if structured_data:
         st.subheader("Datos extraídos:")
