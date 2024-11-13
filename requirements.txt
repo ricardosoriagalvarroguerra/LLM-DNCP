@@ -2,5 +2,6 @@ streamlit
 requests
 pymupdf
 pandas
-pytesseract==0.3.10         # Para hacer OCR en las imágenes generadas a partir del PDF
+pytesseract
 pillow
+pdf2image
