@@ -1,9 +1,9 @@
 import streamlit as st
+import pandas as pd
 import pytesseract
-from pdf2image import convert_from_path
 from PIL import Image
-import io
 import requests
+import io
 
 # Configuración de la API de Hugging Face
 API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
@@ -22,7 +22,7 @@ def query(payload):
 # Función para generar texto usando el modelo GPT-Neo
 def extract_data_with_gptneo(text):
     prompt = f"""
-    Extrae y organiza los datos en una tabla. En este PDF escaneado, los datos de interés están en ubicaciones específicas.
+    Extrae y organiza los datos en una tabla. En esta imagen, los datos de interés están en ubicaciones específicas.
     Por favor, sigue estas instrucciones para extraer:
     - NOMBRE DE LA LICITACIÓN
     - ENTIDAD CONVOCANTE
@@ -64,23 +64,21 @@ def text_to_dataframe(structured_text):
     return df
 
 # Interfaz de Streamlit
-st.title("Extractor de Datos de Licitaciones en PDF Escaneado usando GPT-Neo")
+st.title("Extractor de Datos de Licitaciones usando OCR en Imágenes")
 
-# Subir archivo PDF
-pdf_file = st.file_uploader("Sube un archivo PDF escaneado", type=["pdf"])
+# Subir archivo de imagen
+image_file = st.file_uploader("Sube una imagen con texto", type=["jpg", "png", "jpeg"])
 
-if pdf_file:
-    # Convertir el PDF a imágenes
-    images = convert_from_path(pdf_file)
-    
-    # Aplicar OCR a cada imagen y extraer el texto
-    all_text = ""
-    for img in images:
-        all_text += extract_text_from_image(img) + "\n"
-    
+if image_file:
+    # Abrir la imagen con PIL
+    image = Image.open(image_file)
+
+    # Aplicar OCR a la imagen
+    extracted_text = extract_text_from_image(image)
+
     # Extraer datos usando el modelo GPT-Neo
     with st.spinner("Procesando el documento..."):
-        structured_data = extract_data_with_gptneo(all_text)
+        structured_data = extract_data_with_gptneo(extracted_text)
     
     if structured_data:
         st.subheader("Datos extraídos:")
@@ -99,5 +97,4 @@ if pdf_file:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
-
 
