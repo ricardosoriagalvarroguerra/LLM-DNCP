@@ -35,10 +35,10 @@ def extract_data_with_llama2(text):
     {text}
     """
 
-    response = client.post(
+    response = client.text_generation(
         model="meta-llama/Llama-2-7b-chat-hf",
         inputs=prompt,
-        parameters={"max_tokens": 500}
+        max_new_tokens=500
     )
 
     if "generated_text" in response:
@@ -95,3 +95,4 @@ if pdf_file:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
+
