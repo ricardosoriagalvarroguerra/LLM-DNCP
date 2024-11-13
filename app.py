@@ -35,12 +35,13 @@ def extract_data_with_llama2(text):
     {text}
     """
 
-    response = client.text_generation(
-        model="meta-llama/Llama-2-7b-chat-hf",
-        inputs=prompt,
-        max_new_tokens=500
+    # Llamada al modelo Llama 2 usando client.post para enviar el prompt directamente
+    response = client.post(
+        f"https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf",
+        json={"inputs": prompt, "parameters": {"max_new_tokens": 500}}
     )
 
+    # Verificar si la respuesta contiene 'generated_text'
     if "generated_text" in response:
         return response["generated_text"]
     else:
@@ -95,4 +96,3 @@ if pdf_file:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
-
