@@ -5,7 +5,7 @@ import pandas as pd
 import io
 
 # Coloca tu API Token de Hugging Face aquí
-API_TOKEN = "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"  # Reemplaza con tu clave de API
+API_TOKEN = "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"  # Reemplaza con tu clave de API
 headers = {
     "Authorization": f"Bearer {API_TOKEN}"
 }
