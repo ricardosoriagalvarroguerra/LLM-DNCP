@@ -1,28 +1,28 @@
 import streamlit as st
 import pandas as pd
 import pytesseract
-from pdf2image import convert_from_path
+import fitz  # PyMuPDF para manejar PDFs sin Poppler
 from PIL import Image
 import requests
-import tempfile
+import io
 
 # Configuración de la API de Hugging Face
 API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
 API_TOKEN = "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"  # Reemplaza con tu token de Hugging Face
 headers = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# Función para hacer OCR en PDF escaneado
+# Función para hacer OCR en PDF escaneado sin Poppler
 def extract_text_from_scanned_pdf(pdf_file):
     text = ""
-    # Guarda temporalmente el archivo subido
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-        temp_pdf.write(pdf_file.read())
-        temp_pdf_path = temp_pdf.name
-
-    # Convierte cada página del archivo PDF en una imagen
-    images = convert_from_path(temp_pdf_path)
-    for image in images:
-        text += pytesseract.image_to_string(image)  # Extrae el texto de la imagen usando OCR
+    # Abre el archivo PDF usando PyMuPDF
+    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            # Renderiza la página como una imagen de alta resolución
+            pix = page.get_pixmap(dpi=300)  # DPI alto para mejor precisión OCR
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            # Extrae el texto de la imagen usando OCR
+            text += pytesseract.image_to_string(img) + "\n"
     return text
 
 # Función para realizar la solicitud a la API de Hugging Face
