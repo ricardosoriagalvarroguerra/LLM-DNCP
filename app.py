@@ -1,16 +1,17 @@
 import streamlit as st
 import fitz  # PyMuPDF para extracción de texto de PDF
 import pandas as pd
-import requests  # Usamos requests para la solicitud HTTP
+import requests  # Para hacer la solicitud HTTP
 
 # Configuración de la API de Hugging Face
-API_TOKEN = "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"  # Reemplaza con tu nuevo token de lectura
-model_url = "https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf"
+API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
+API_TOKEN = "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"  # Reemplaza con tu token de Hugging Face
+headers = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# Encabezados para la autenticación
-headers = {
-    "Authorization": f"Bearer {API_TOKEN}"
-}
+# Función para realizar la solicitud a la API de Hugging Face
+def query(payload):
+    response = requests.post(API_URL, headers=headers, json=payload)
+    return response.json()
 
 # Función para extraer texto del PDF
 def extract_text_from_pdf(pdf_file):
@@ -21,8 +22,8 @@ def extract_text_from_pdf(pdf_file):
             text += page.get_text()
     return text
 
-# Función para extraer datos usando el modelo Llama 2
-def extract_data_with_llama2(text):
+# Función para extraer datos usando el modelo GPT-Neo
+def extract_data_with_gptneo(text):
     prompt = f"""
     Extrae y organiza los datos en una tabla con las siguientes columnas:
     - NOMBRE DE LA LICITACIÓN
@@ -39,26 +40,16 @@ def extract_data_with_llama2(text):
     Texto:
     {text}
     """
-
-    # Llamada al modelo Llama 2 usando requests
-    response = requests.post(
-        model_url,
-        headers=headers,
-        json={"inputs": prompt, "parameters": {"max_new_tokens": 500}}
-    )
-
+    
+    # Solicitar respuesta al modelo GPT-Neo
+    response = query({"inputs": prompt, "parameters": {"max_new_tokens": 500}})
+    
     # Verificar si la respuesta contiene 'generated_text'
-    if response.status_code == 200:
-        result = response.json()
-        if "generated_text" in result[0]:
-            return result[0]["generated_text"]
-        else:
-            st.error("El modelo no devolvió texto generado")
-            st.write(result)
-            return None
+    if response and "generated_text" in response[0]:
+        return response[0]["generated_text"]
     else:
-        st.error(f"Error en la llamada al modelo: {response.status_code}")
-        st.write(response.json())  # Para ver detalles del error en Streamlit
+        st.error("Error en la respuesta del modelo")
+        st.write(response)  # Para ver detalles del error en Streamlit
         return None
 
 # Función para convertir el texto estructurado en un DataFrame
@@ -78,7 +69,7 @@ def text_to_dataframe(structured_text):
     return df
 
 # Interfaz de Streamlit
-st.title("Extractor de Datos de Licitaciones en PDF usando Llama 2")
+st.title("Extractor de Datos de Licitaciones en PDF usando GPT-Neo")
 
 # Subir archivo PDF
 pdf_file = st.file_uploader("Sube un archivo PDF", type=["pdf"])
@@ -87,9 +78,9 @@ if pdf_file:
     # Extraer texto del PDF
     text = extract_text_from_pdf(pdf_file)
     
-    # Extraer datos usando el modelo Llama 2
+    # Extraer datos usando el modelo GPT-Neo
     with st.spinner("Procesando el documento..."):
-        structured_data = extract_data_with_llama2(text)
+        structured_data = extract_data_with_gptneo(text)
     
     if structured_data:
         st.subheader("Datos extraídos:")
@@ -108,4 +99,3 @@ if pdf_file:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
-
