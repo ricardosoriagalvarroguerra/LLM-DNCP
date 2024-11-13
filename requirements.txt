@@ -1,6 +1,6 @@
 streamlit
-requests==2.31.0            # Para realizar solicitudes HTTP a la API de Hugging Face
-pymupdf==1.24.13            # Para procesar y extraer texto/imágenes de archivos PDF sin Poppler
-pandas==2.1.1               # Para manipular y exportar datos en formato CSV
+requests
+pymupdf
+pandas
 pytesseract==0.3.10         # Para hacer OCR en las imágenes generadas a partir del PDF
 pillow
