@@ -1,50 +1,50 @@
 import streamlit as st
-import fitz  # PyMuPDF para extracción de texto de PDF
 import pandas as pd
-import requests  # Para hacer la solicitud HTTP
+import pytesseract
+from pdf2image import convert_from_path
+from PIL import Image
+import requests
 
 # Configuración de la API de Hugging Face
 API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
 API_TOKEN = "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"  # Reemplaza con tu token de Hugging Face
 headers = {"Authorization": f"Bearer {API_TOKEN}"}
 
+# Función para hacer OCR en PDF escaneado
+def extract_text_from_scanned_pdf(pdf_file):
+    text = ""
+    images = convert_from_path(pdf_file)  # Convierte cada página a una imagen
+    for image in images:
+        text += pytesseract.image_to_string(image)  # Extrae el texto de la imagen usando OCR
+    return text
+
 # Función para realizar la solicitud a la API de Hugging Face
 def query(payload):
     response = requests.post(API_URL, headers=headers, json=payload)
     return response.json()
 
-# Función para extraer texto del PDF
-def extract_text_from_pdf(pdf_file):
-    text = ""
-    # Abrir el archivo PDF desde el objeto en memoria (BytesIO) en lugar de una ruta
-    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
-
-# Función para extraer datos usando el modelo GPT-Neo
+# Función para generar texto usando el modelo GPT-Neo
 def extract_data_with_gptneo(text):
     prompt = f"""
-    Extrae y organiza los datos en una tabla con las siguientes columnas:
-    - NOMBRE DE LA LICITACIÓN
-    - ENTIDAD CONVOCANTE
-    - PROCEDIMIENTO DE CONTRATACIÓN
-    - OFERENTES
-    - MONTO DE LOS OFERENTES
-    - CANTIDAD DE OFERENTES
-    - CANTIDAD DE CONSORCIOS
-    - CANTIDAD DE EMPRESAS
-    - MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE
-    - FINANCIADOR
+    Extrae y organiza los datos en una tabla. En este PDF escaneado, los datos de interés están en ubicaciones específicas.
+    Por favor, sigue estas instrucciones para extraer:
+    - NOMBRE DE LA LICITACIÓN: (Indica el lugar específico)
+    - ENTIDAD CONVOCANTE: (Indica el lugar específico)
+    - PROCEDIMIENTO DE CONTRATACIÓN: (Indica el lugar específico)
+    - OFERENTES: (Indica el lugar específico)
+    - MONTO DE LOS OFERENTES: (Indica el lugar específico)
+    - CANTIDAD DE OFERENTES: (Indica el lugar específico)
+    - CANTIDAD DE CONSORCIOS: (Indica el lugar específico)
+    - CANTIDAD DE EMPRESAS: (Indica el lugar específico)
+    - MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE: (Indica el lugar específico)
+    - FINANCIADOR: (Indica el lugar específico)
 
     Texto:
     {text}
     """
-    
-    # Solicitar respuesta al modelo GPT-Neo
+
     response = query({"inputs": prompt, "parameters": {"max_new_tokens": 500}})
     
-    # Verificar si la respuesta contiene 'generated_text'
     if response and "generated_text" in response[0]:
         return response[0]["generated_text"]
     else:
@@ -54,12 +54,11 @@ def extract_data_with_gptneo(text):
 
 # Función para convertir el texto estructurado en un DataFrame
 def text_to_dataframe(structured_text):
-    # Este es un ejemplo; adapta este proceso de acuerdo a cómo esté estructurado el texto
     data = []
     lines = structured_text.split("\n")
     for line in lines:
-        columns = line.split(",")  # Asume que los datos están separados por comas
-        if len(columns) == 10:  # Asegúrate de que cada línea tiene el número correcto de columnas
+        columns = line.split(",")  
+        if len(columns) == 10:  
             data.append(columns)
     df = pd.DataFrame(data, columns=[
         "NOMBRE DE LA LICITACIÓN", "ENTIDAD CONVOCANTE", "PROCEDIMIENTO DE CONTRATACIÓN", "OFERENTES", 
@@ -69,14 +68,14 @@ def text_to_dataframe(structured_text):
     return df
 
 # Interfaz de Streamlit
-st.title("Extractor de Datos de Licitaciones en PDF usando GPT-Neo")
+st.title("Extractor de Datos de Licitaciones en PDF Escaneado usando GPT-Neo")
 
 # Subir archivo PDF
-pdf_file = st.file_uploader("Sube un archivo PDF", type=["pdf"])
+pdf_file = st.file_uploader("Sube un archivo PDF escaneado", type=["pdf"])
 
 if pdf_file:
-    # Extraer texto del PDF
-    text = extract_text_from_pdf(pdf_file)
+    # Extraer texto del PDF escaneado
+    text = extract_text_from_scanned_pdf(pdf_file)
     
     # Extraer datos usando el modelo GPT-Neo
     with st.spinner("Procesando el documento..."):
@@ -99,3 +98,4 @@ if pdf_file:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
+
