@@ -5,3 +5,4 @@ pandas
 pytesseract
 pillow
 pdf2image
+poppler
