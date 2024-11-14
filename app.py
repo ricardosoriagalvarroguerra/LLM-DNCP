@@ -99,7 +99,7 @@ def text_to_dataframe(structured_text):
     lines = structured_text.strip().split("\n")
     
     # Verificar si hay encabezados y omitirlos
-    if lines and ("OFERENTE" in lines[0].upper() or "OFERTAS" in lines[0].upper()):
+    if lines and ("Oferentes" in lines[0].upper() or "Garantia de Mantenimiento de OFerta" in lines[0].upper()):
         lines = lines[1:]
     
     for line in lines:
