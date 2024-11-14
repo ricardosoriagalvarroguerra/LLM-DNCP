@@ -18,7 +18,7 @@ st.title("Extractor de Datos de Licitaciones usando OCR en Imágenes")
 # Instrucciones para el usuario
 st.markdown("""
 Esta aplicación te permite subir una imagen que contiene información sobre licitaciones. 
-El texto de la imagen será extraído y procesado para extraer datos específicos mediante una interfaz de chat.
+El texto de la imagen será extraído y procesado para extraer datos específicos de cada OFERENTE y el monto total pagado por oferente, organizándolos en una tabla.
 """)
 
 # **Configuración de la API de Hugging Face**
@@ -63,15 +63,17 @@ def query(payload):
         st.error(f"Ocurrió un error al realizar la solicitud a Hugging Face: {e}")
         return None
 
-# Función para generar texto usando el modelo GPT-Neo
-def generate_response(text):
+# Función para generar respuesta usando GPT-Neo con prompt fijo
+def extract_oferentes_y_ofertas(text):
     prompt = f"""
-    Extrae y organiza los datos de cada OFERENTE y el monto total pagado a cada oferente. Presenta esta información en una tabla con dos columnas: "OFERENTE" y "OFERTAS". Utiliza el siguiente formato de tabla en texto plano con comas como separadores.
+    Extrae y organiza los datos de cada OFERENTE y el monto total pagado a cada oferente. 
+    Presenta esta información en una tabla con dos columnas: "OFERENTE" y "OFERTAS". 
+    Utiliza el siguiente formato de tabla en texto plano con comas como separadores.
 
     Texto:
     {text}
     """
-    
+
     payload = {
         "inputs": prompt,
         "parameters": {
@@ -82,9 +84,9 @@ def generate_response(text):
             "do_sample": False
         }
     }
-    
+
     response = query(payload)
-    
+
     if response and isinstance(response, list) and "generated_text" in response[0]:
         return response[0]["generated_text"]
     else:
@@ -95,12 +97,18 @@ def generate_response(text):
 def text_to_dataframe(structured_text):
     data = []
     lines = structured_text.strip().split("\n")
+    
+    # Verificar si hay encabezados y omitirlos
+    if lines and ("OFERENTE" in lines[0].upper() or "OFERTAS" in lines[0].upper()):
+        lines = lines[1:]
+    
     for line in lines:
         # Separar por comas, asumiendo que los campos están separados por comas
         columns = [col.strip() for col in line.split(",")]
         if len(columns) == 2:  # Ahora solo hay 2 columnas
             try:
                 oferente = columns[0]
+                # Convertir ofertas a float, eliminando símbolos como '$' y comas
                 ofertas = float(columns[1].replace('$', '').replace(',', '').strip())
                 data.append([oferente, ofertas])
             except ValueError:
@@ -113,10 +121,6 @@ def text_to_dataframe(structured_text):
         "OFERTAS"
     ])
     return df
-
-# Inicializar el estado de la sesión para el chat
-if 'chat_history' not in st.session_state:
-    st.session_state['chat_history'] = []
 
 # Interfaz para subir archivos de imagen
 image_file = st.file_uploader("Sube una imagen con texto", type=["jpg", "png", "jpeg"])
@@ -134,48 +138,30 @@ if image_file:
         st.subheader("Texto Extraído:")
         st.write(extracted_text if extracted_text else "No se pudo extraer texto de la imagen.")
 
-        # Interfaz de Chat para ingresar prompts
-        st.markdown("## Interfaz de Chat para Procesar el Texto Extraído")
-        
-        # Área de texto para el prompt del usuario
-        user_input = st.text_input("Ingresa tu prompt para procesar el texto extraído:", "")
-        
-        if st.button("Enviar"):
-            if user_input.strip() != "":
-                with st.spinner("Procesando el prompt..."):
-                    response = generate_response(user_input)
+        # Procesar el texto extraído con GPT-Neo
+        if extracted_text:
+            with st.spinner("Procesando el texto para extraer OFERENTE y OFERTAS..."):
+                structured_data = extract_oferentes_y_ofertas(extracted_text)
+            
+            if structured_data:
+                st.subheader("Datos Extraídos:")
+                st.write(structured_data)
                 
-                if response:
-                    # Actualizar el historial del chat
-                    st.session_state['chat_history'].append({"user": user_input, "bot": response})
-            else:
-                st.warning("Por favor, ingresa un prompt antes de enviar.")
-        
-        # Mostrar el historial del chat
-        if st.session_state['chat_history']:
-            st.markdown("### Historial del Chat")
-            for chat in st.session_state['chat_history']:
-                st.markdown(f"**Tú:** {chat['user']}")
-                st.markdown(f"**Bot:** {chat['bot']}")
-    
+                # Convertir el texto estructurado a un DataFrame
+                df = text_to_dataframe(structured_data)
+                
+                if not df.empty:
+                    # Mostrar la tabla en Streamlit
+                    st.dataframe(df)
+
+                    # Descargar los datos como archivo CSV
+                    csv = df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Descargar resultados en CSV",
+                        data=csv,
+                        file_name="datos_licitacion.csv",
+                        mime="text/csv"
+                    )
     except Exception as e:
         st.error(f"Ocurrió un error al procesar la imagen: {e}")
-
-# Opcional: Mostrar y descargar datos estructurados si están disponibles
-if st.session_state['chat_history']:
-    last_response = st.session_state['chat_history'][-1]['bot']
-    df = text_to_dataframe(last_response)
-    
-    if not df.empty:
-        st.subheader("Datos Extraídos:")
-        st.dataframe(df)
-
-        # Descargar los datos como archivo CSV
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Descargar resultados en CSV",
-            data=csv,
-            file_name="datos_licitacion.csv",
-            mime="text/csv"
-        )
 
