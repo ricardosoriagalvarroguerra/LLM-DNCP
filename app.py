@@ -64,7 +64,14 @@ def query(payload):
         return None
 
 # Función para generar texto usando el modelo GPT-Neo
-def generate_response(prompt):
+def generate_response(text):
+    prompt = f"""
+    Extrae y organiza los datos de cada OFERENTE y el monto total pagado a cada oferente. Presenta esta información en una tabla con dos columnas: "OFERENTE" y "OFERTAS". Utiliza el siguiente formato de tabla en texto plano con comas como separadores.
+
+    Texto:
+    {text}
+    """
+    
     payload = {
         "inputs": prompt,
         "parameters": {
@@ -91,22 +98,19 @@ def text_to_dataframe(structured_text):
     for line in lines:
         # Separar por comas, asumiendo que los campos están separados por comas
         columns = [col.strip() for col in line.split(",")]
-        if len(columns) == 10:  # Asegurarse de que hay 10 columnas
-            data.append(columns)
+        if len(columns) == 2:  # Ahora solo hay 2 columnas
+            try:
+                oferente = columns[0]
+                ofertas = float(columns[1].replace('$', '').replace(',', '').strip())
+                data.append([oferente, ofertas])
+            except ValueError:
+                st.warning(f"Formato incorrecto en la línea: {line}")
     if not data:
         st.warning("No se encontraron datos estructurados válidos en el texto extraído.")
         return pd.DataFrame()
     df = pd.DataFrame(data, columns=[
-        "NOMBRE DE LA LICITACIÓN", 
-        "ENTIDAD CONVOCANTE", 
-        "PROCEDIMIENTO DE CONTRATACIÓN", 
-        "OFERENTES", 
-        "MONTO DE LOS OFERENTES", 
-        "CANTIDAD DE OFERENTES", 
-        "CANTIDAD DE CONSORCIOS", 
-        "CANTIDAD DE EMPRESAS", 
-        "MONTOS OFERTADOS POR LOS OFERENTES EN CADA LOTE", 
-        "FINANCIADOR"
+        "OFERENTE", 
+        "OFERTAS"
     ])
     return df
 
@@ -135,7 +139,7 @@ if image_file:
         
         # Área de texto para el prompt del usuario
         user_input = st.text_input("Ingresa tu prompt para procesar el texto extraído:", "")
-
+        
         if st.button("Enviar"):
             if user_input.strip() != "":
                 with st.spinner("Procesando el prompt..."):
@@ -146,14 +150,14 @@ if image_file:
                     st.session_state['chat_history'].append({"user": user_input, "bot": response})
             else:
                 st.warning("Por favor, ingresa un prompt antes de enviar.")
-
+        
         # Mostrar el historial del chat
         if st.session_state['chat_history']:
             st.markdown("### Historial del Chat")
             for chat in st.session_state['chat_history']:
                 st.markdown(f"**Tú:** {chat['user']}")
                 st.markdown(f"**Bot:** {chat['bot']}")
-
+    
     except Exception as e:
         st.error(f"Ocurrió un error al procesar la imagen: {e}")
 
@@ -174,3 +178,4 @@ if st.session_state['chat_history']:
             file_name="datos_licitacion.csv",
             mime="text/csv"
         )
+
