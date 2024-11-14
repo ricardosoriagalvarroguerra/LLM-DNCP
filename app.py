@@ -66,9 +66,9 @@ def query(payload):
 # Función para generar respuesta usando GPT-Neo con prompt fijo
 def extract_oferentes_y_ofertas(text):
     prompt = f"""
-    Extrae y organiza los datos de cada OFERENTE y el monto total pagado a cada oferente. 
-    Presenta esta información en una tabla con dos columnas: "OFERENTE" y "OFERTAS". 
-    Utiliza el siguiente formato de tabla en texto plano con comas como separadores.
+    Extrae el nombre de cada observación de la columan Oferentes o variaciones del nombre de la columna.
+    Extrae el Monto total de oferta que son numeros que esta en la columna o seguido del texto Garantia de Mantenimiento de OFerta.
+    crea una tabla con la columna Oferentes y el Monto total de la Oferta.
 
     Texto:
     {text}
