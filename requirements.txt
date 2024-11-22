@@ -1,6 +1,5 @@
 streamlit
 groq
 easyocr
-pdf2image
-Pillow
+PyMuPDF
 pandas
