@@ -1,7 +1,6 @@
 import os
 import streamlit as st
-import easyocr
-from pdf2image import convert_from_bytes
+import fitz  # PyMuPDF
 from typing import Generator
 from groq import Groq
 import pandas as pd
@@ -9,16 +8,16 @@ import pandas as pd
 # Configuración de la página
 st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
 
-st.subheader("Extracción de Datos Actas de Apertura")
+# Mostrar icono en la cabecera
+def icon(emoji: str):
+    """Muestra un emoji como icono al estilo Notion."""
+    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
+
+st.subheader("Extracción Actas de Apertura")
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
 GROQ_API_KEY = "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"
-client = Groq(
-    api_key=GROQ_API_KEY,
-)
-
-# Inicializar EasyOCR
-reader = easyocr.Reader(['es'])
+client = Groq(api_key=GROQ_API_KEY)
 
 # Inicializar el historial del chat
 if "messages" not in st.session_state:
@@ -27,19 +26,24 @@ if "messages" not in st.session_state:
 if "extracted_text" not in st.session_state:
     st.session_state.extracted_text = None
 
+# Función para extraer texto de un PDF usando PyMuPDF
+def extract_text_from_pdf(file):
+    """Extrae texto directamente del PDF usando PyMuPDF."""
+    pdf_document = fitz.open("pdf", file.read())
+    text = ""
+    for page_num in range(len(pdf_document)):
+        page = pdf_document[page_num]
+        text += page.get_text()
+    return text
+
 # Layout para subir PDFs y mostrar chat
 uploaded_file = st.file_uploader("Sube un archivo PDF", type=["pdf"])
 
 if uploaded_file:
     st.info("Procesando el archivo PDF...")
 
-    # Convertir PDF a imágenes y extraer texto
-    images = convert_from_bytes(uploaded_file.read())
-    extracted_text = ""
-    for image in images:
-        result = reader.readtext(image)
-        page_text = " ".join([text[1] for text in result])
-        extracted_text += page_text + "\n"
+    # Extraer texto directamente del PDF
+    extracted_text = extract_text_from_pdf(uploaded_file)
 
     st.success("Texto extraído exitosamente.")
     st.session_state.extracted_text = extracted_text
