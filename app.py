@@ -20,7 +20,7 @@ st.subheader("Chatbot con PDF y GroqCloud")
 
 # Inicializar el cliente de GroqCloud
 client = Groq(
-    api_key=st.secrets["GROQ_API_KEY"],
+    api_key=st.secrets["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"],
 )
 
 # Inicializar EasyOCR
