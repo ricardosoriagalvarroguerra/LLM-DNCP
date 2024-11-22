@@ -14,7 +14,7 @@ st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF 
 
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
-GROQ_API_KEY = "tu_clave_de_api_aquí"
+GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
 # Cargar EasyOCR con caché para evitar múltiples descargas
