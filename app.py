@@ -17,8 +17,12 @@ st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF 
 GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
-# Inicializar EasyOCR
-reader = easyocr.Reader(['es'])
+# Cargar EasyOCR con caché para evitar múltiples descargas
+@st.cache_resource
+def initialize_easyocr():
+    return easyocr.Reader(['es'])
+
+reader = initialize_easyocr()
 
 # Inicializar el historial del chat
 if "messages" not in st.session_state:
