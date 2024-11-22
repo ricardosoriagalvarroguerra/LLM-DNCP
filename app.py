@@ -13,9 +13,6 @@ def icon(emoji: str):
     """Muestra un emoji como icono al estilo Notion."""
     st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
 
-icon("🤖")
-
-st.subheader("Extraction actas")
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
 GROQ_API_KEY = "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"
