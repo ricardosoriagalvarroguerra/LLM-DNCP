@@ -9,14 +9,7 @@ import pandas as pd
 # Configuración de la página
 st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
 
-# Mostrar icono en la cabecera
-def icon(emoji: str):
-    """Muestra un emoji como icono al estilo Notion."""
-    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
-
-icon("🤖")
-
-st.subheader("Chatbot con PDF y GroqCloud")
+st.subheader("Extracción de Datos Actas de Apertura")
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
 GROQ_API_KEY = "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"
