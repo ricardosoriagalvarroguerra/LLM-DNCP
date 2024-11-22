@@ -12,17 +12,9 @@ import io
 # Configuración de la página
 st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
 
-# Mostrar icono en la cabecera
-def icon(emoji: str):
-    """Muestra un emoji como icono al estilo Notion."""
-    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
-
-icon("🤖")
-
-st.subheader("Chatbot con PDF y GroqCloud")
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "tu_clave_de_api_aquí"
 client = Groq(api_key=GROQ_API_KEY)
 
 # Cargar EasyOCR con caché para evitar múltiples descargas
@@ -39,7 +31,6 @@ if "messages" not in st.session_state:
 if "extracted_text" not in st.session_state:
     st.session_state.extracted_text = None
 
-
 def extract_images_from_pdf(file):
     """Convierte las páginas de un PDF en imágenes usando PyMuPDF."""
     pdf_document = fitz.open(stream=file.read(), filetype="pdf")
@@ -51,12 +42,11 @@ def extract_images_from_pdf(file):
         images.append(img)
     return images
 
-
 def extract_data_from_images(images):
     """Extrae nombres de oferentes y montos totales desde imágenes."""
-    # Variables para almacenar los datos extraídos
-    offerors = []
-    amounts = []
+    # Lista para almacenar los datos extraídos como pares
+    data = []
+    current_offeror = None
 
     for image in images:
         # Convertir la imagen (Pillow) a un array de NumPy
@@ -67,25 +57,21 @@ def extract_data_from_images(images):
 
         # Filtrar el texto extraído para encontrar nombres y montos
         for line in results:
+            line = line.strip()
             # Buscar nombres de oferentes (mayúsculas)
-            if re.match(r"^[A-ZÑ\s]+\b", line):  # Ejemplo: "CALDETEC INGENIERÍA SRL"
-                offerors.append(line.strip())
+            if re.match(r"^[A-ZÑ\s]+$", line):  # Ejemplo: "CALDETEC INGENIERÍA SRL"
+                current_offeror = line
 
             # Buscar montos de oferta (números grandes con puntos)
             elif re.search(r"\d+\.\d+\.\d+", line):  # Ejemplo: "225.124.186.771"
-                amounts.append(line.strip())
-
-    # Garantizar que ambas listas tengan la misma longitud
-    max_length = max(len(offerors), len(amounts))
-
-    # Rellenar las listas más cortas con valores vacíos
-    offerors.extend([""] * (max_length - len(offerors)))
-    amounts.extend([""] * (max_length - len(amounts)))
+                amount = line
+                if current_offeror:
+                    # Añadir el par al data
+                    data.append({'Nombre Oferente': current_offeror, 'Monto Total de la Oferta': amount})
+                    current_offeror = None  # Resetear el nombre del oferente para el siguiente
 
     # Crear una tabla con los datos extraídos
-    data = {'Nombre Oferente': offerors, 'Monto Total de la Oferta': amounts}
     return pd.DataFrame(data)
-
 
 # Subir archivo PDF
 uploaded_file = st.file_uploader("Sube un archivo PDF", type=["pdf"])
@@ -100,9 +86,12 @@ if uploaded_file:
     data_df = extract_data_from_images(images)
 
     # Mostrar los resultados
-    st.success("Datos extraídos exitosamente.")
-    st.subheader("Tabla Estructurada de Resultados")
-    st.table(data_df)
+    if not data_df.empty:
+        st.success("Datos extraídos exitosamente.")
+        st.subheader("Tabla Estructurada de Resultados")
+        st.table(data_df)
+    else:
+        st.warning("No se encontraron datos de oferentes y montos en las imágenes proporcionadas.")
 
 # Selección del modelo de GroqCloud
 models = {
@@ -130,13 +119,11 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-
 def generate_chat_responses(chat_completion):
     """Generador para manejar las respuestas de Groq API."""
     for chunk in chat_completion:
         if chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
-
 
 if prompt := st.chat_input("Escribe tu consulta..."):
     # Si se ingresó texto como prompt, agregar al historial del chat
@@ -166,7 +153,10 @@ if prompt := st.chat_input("Escribe tu consulta..."):
         # Generar respuestas dinámicas
         with st.chat_message("assistant", avatar="🤖"):
             chat_responses_generator = generate_chat_responses(chat_completion)
-            full_response = st.write_stream(chat_responses_generator)
+            full_response = ""
+            for response_chunk in chat_responses_generator:
+                full_response += response_chunk
+                st.write(response_chunk)
 
     except Exception as e:
         st.error(f"Error al procesar: {e}", icon="🚨")
