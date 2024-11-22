@@ -8,10 +8,19 @@ from groq import Groq
 from PIL import Image
 import fitz  # PyMuPDF
 import io
+import logging
 
 # Configuración de la página
 st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
 
+# Mostrar icono en la cabecera
+def icon(emoji: str):
+    """Muestra un emoji como icono al estilo Notion."""
+    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
+
+icon("🤖")
+
+st.subheader("Chatbot con PDF y GroqCloud")
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
 GROQ_API_KEY = "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"
@@ -20,7 +29,30 @@ client = Groq(api_key=GROQ_API_KEY)
 # Cargar EasyOCR con caché para evitar múltiples descargas
 @st.cache_resource
 def initialize_easyocr():
-    return easyocr.Reader(['es'])
+    import os
+
+    # Suprimir mensajes de información de EasyOCR
+    logging.getLogger('easyocr').setLevel(logging.ERROR)
+
+    # Especificar una ruta de caché persistente
+    user_home = os.path.expanduser('~')
+    easyocr_cache = os.path.join(user_home, '.EasyOCR')
+
+    # Crear la carpeta si no existe
+    if not os.path.exists(easyocr_cache):
+        os.makedirs(easyocr_cache)
+
+    # Establecer la variable de entorno para la ruta de caché
+    os.environ['EASYOCR_MODULE_PATH'] = easyocr_cache
+
+    # Inicializar el lector de EasyOCR con múltiples trabajadores
+    return easyocr.Reader(
+        ['es'],
+        model_storage_directory=easyocr_cache,
+        download_enabled=True,
+        gpu=False,
+        worker_count=4  # Ajusta este número según los núcleos de tu CPU
+    )
 
 reader = initialize_easyocr()
 
@@ -67,7 +99,10 @@ def extract_data_from_images(images):
                 amount = line
                 if current_offeror:
                     # Añadir el par al data
-                    data.append({'Nombre Oferente': current_offeror, 'Monto Total de la Oferta': amount})
+                    data.append({
+                        'Nombre Oferente': current_offeror,
+                        'Monto Total de la Oferta': amount
+                    })
                     current_offeror = None  # Resetear el nombre del oferente para el siguiente
 
     # Crear una tabla con los datos extraídos
@@ -95,7 +130,11 @@ if uploaded_file:
 
 # Selección del modelo de GroqCloud
 models = {
-    "llama3-8b-8192": {"name": "LLaMA3-8b-8192", "tokens": 8192, "developer": "Meta"},
+    "llama3-8b-8192": {
+        "name": "LLaMA3-8b-8192",
+        "tokens": 8192,
+        "developer": "Meta"
+    },
 }
 
 model_option = st.selectbox(
@@ -154,9 +193,10 @@ if prompt := st.chat_input("Escribe tu consulta..."):
         with st.chat_message("assistant", avatar="🤖"):
             chat_responses_generator = generate_chat_responses(chat_completion)
             full_response = ""
+            response_placeholder = st.empty()
             for response_chunk in chat_responses_generator:
                 full_response += response_chunk
-                st.write(response_chunk)
+                response_placeholder.markdown(full_response)
 
     except Exception as e:
         st.error(f"Error al procesar: {e}", icon="🚨")
