@@ -16,11 +16,11 @@ def icon(emoji: str):
 
 icon("🤖")
 
-st.subheader("Chatbot con PDF y GroqCloud", divider="🌈", anchor=False)
+st.subheader("Chatbot con PDF y GroqCloud")
 
 # Inicializar el cliente de GroqCloud
 client = Groq(
-    api_key=st.secrets["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"],
+    api_key=st.secrets["GROQ_API_KEY"],
 )
 
 # Inicializar EasyOCR
