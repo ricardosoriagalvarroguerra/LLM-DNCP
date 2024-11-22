@@ -1,6 +1,6 @@
 streamlit
-pandas
+groq
 easyocr
-pillow
-requests
-torch
+pdf2image
+Pillow
+pandas
