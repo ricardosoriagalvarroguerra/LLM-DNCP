@@ -1,9 +1,9 @@
 import os
 import streamlit as st
-import fitz  # PyMuPDF
-from typing import Generator
-from groq import Groq
+import easyocr
 import pandas as pd
+import re
+from groq import Groq
 
 # Configuración de la página
 st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
@@ -13,11 +13,16 @@ def icon(emoji: str):
     """Muestra un emoji como icono al estilo Notion."""
     st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
 
-st.subheader("Extracción Actas de Apertura")
+icon("🤖")
+
+st.subheader("Extraction actas")
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
 GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
+
+# Inicializar EasyOCR
+reader = easyocr.Reader(['es'])
 
 # Inicializar el historial del chat
 if "messages" not in st.session_state:
@@ -26,30 +31,47 @@ if "messages" not in st.session_state:
 if "extracted_text" not in st.session_state:
     st.session_state.extracted_text = None
 
-# Función para extraer texto de un PDF usando PyMuPDF
-def extract_text_from_pdf(file):
-    """Extrae texto directamente del PDF usando PyMuPDF."""
-    pdf_document = fitz.open("pdf", file.read())
-    text = ""
-    for page_num in range(len(pdf_document)):
-        page = pdf_document[page_num]
-        text += page.get_text()
-    return text
 
-# Layout para subir PDFs y mostrar chat
+def extract_bids_from_pdf(file):
+    """Extrae nombres de oferentes y montos totales de ofertas desde un PDF escaneado."""
+    results = reader.readtext(file.read(), detail=0)  # Realizar OCR
+
+    # Variables para almacenar los datos extraídos
+    offerors = []
+    amounts = []
+
+    # Filtrar el texto extraído para encontrar nombres y montos
+    for line in results:
+        # Busca posibles nombres de oferentes (generalmente en mayúsculas)
+        if re.match(r"^[A-ZÑ\s]+\b", line):  # Ejemplo: "CALDETEC INGENIERÍA SRL"
+            offerors.append(line.strip())
+
+        # Busca montos de oferta (números grandes con puntos)
+        elif re.search(r"\d+\.\d+\.\d+", line):  # Ejemplo: "98.641.138.385"
+            amounts.append(line.strip())
+
+    # Crear una tabla con los datos extraídos
+    data = {'Nombre Oferente': offerors, 'Monto Total de la Oferta': amounts}
+    df = pd.DataFrame(data)
+
+    return df
+
+
+# Subir archivo PDF
 uploaded_file = st.file_uploader("Sube un archivo PDF", type=["pdf"])
 
 if uploaded_file:
     st.info("Procesando el archivo PDF...")
 
-    # Extraer texto directamente del PDF
-    extracted_text = extract_text_from_pdf(uploaded_file)
+    # Extraer nombres de oferentes y montos totales
+    bids_df = extract_bids_from_pdf(uploaded_file)
 
-    st.success("Texto extraído exitosamente.")
-    st.session_state.extracted_text = extracted_text
-    st.text_area("Texto extraído:", extracted_text, height=200)
+    # Mostrar los resultados
+    st.success("Datos extraídos exitosamente.")
+    st.subheader("Tabla Estructurada de Resultados")
+    st.table(bids_df)
 
-# Selección del modelo
+# Selección del modelo de GroqCloud
 models = {
     "llama3-8b-8192": {"name": "LLaMA3-8b-8192", "tokens": 8192, "developer": "Meta"},
 }
@@ -76,7 +98,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 
-def generate_chat_responses(chat_completion) -> Generator[str, None, None]:
+def generate_chat_responses(chat_completion):
     """Generador para manejar las respuestas de Groq API."""
     for chunk in chat_completion:
         if chunk.choices[0].delta.content:
@@ -122,16 +144,3 @@ if prompt := st.chat_input("Escribe tu consulta..."):
     else:
         combined_response = "\n".join(str(item) for item in full_response)
         st.session_state.messages.append({"role": "assistant", "content": combined_response})
-
-# Tabla estructurada
-if st.session_state.extracted_text:
-    st.subheader("Tabla Estructurada de Resultados")
-    # Ejemplo simple para crear tabla
-    # Ajustar según la lógica de tu prompt o extracción específica
-    data = {
-        "Campo 1": ["Valor A1", "Valor A2"],
-        "Campo 2": ["Valor B1", "Valor B2"],
-        "Campo 3": ["Valor C1", "Valor C2"],
-    }
-    df = pd.DataFrame(data)
-    st.table(df)
