@@ -1,13 +1,17 @@
 import os
 import streamlit as st
+import fitz  # PyMuPDF
 import easyocr
 import pandas as pd
 import re
 from groq import Groq
+from PIL import Image
+import io
 
 # Configuración de la página
 st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
 
+# Inicializar el cliente de GroqCloud con la clave de API directamente
 GROQ_API_KEY = "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"
 client = Groq(api_key=GROQ_API_KEY)
 
@@ -22,23 +26,37 @@ if "extracted_text" not in st.session_state:
     st.session_state.extracted_text = None
 
 
-def extract_bids_from_pdf(file):
-    """Extrae nombres de oferentes y montos totales de ofertas desde un PDF escaneado."""
-    results = reader.readtext(file.read(), detail=0)  # Realizar OCR
+def extract_images_from_pdf(file):
+    """Convierte las páginas de un PDF en imágenes usando PyMuPDF."""
+    pdf_document = fitz.open(stream=file.read(), filetype="pdf")
+    images = []
+    for page_num in range(len(pdf_document)):
+        page = pdf_document[page_num]
+        pix = page.get_pixmap()
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        images.append(img)
+    return images
 
+
+def extract_bids_from_images(images):
+    """Extrae nombres de oferentes y montos totales de ofertas desde imágenes."""
     # Variables para almacenar los datos extraídos
     offerors = []
     amounts = []
 
-    # Filtrar el texto extraído para encontrar nombres y montos
-    for line in results:
-        # Busca posibles nombres de oferentes (generalmente en mayúsculas)
-        if re.match(r"^[A-ZÑ\s]+\b", line):  # Ejemplo: "CALDETEC INGENIERÍA SRL"
-            offerors.append(line.strip())
+    for image in images:
+        # Realizar OCR en cada imagen
+        results = reader.readtext(image, detail=0)
 
-        # Busca montos de oferta (números grandes con puntos)
-        elif re.search(r"\d+\.\d+\.\d+", line):  # Ejemplo: "98.641.138.385"
-            amounts.append(line.strip())
+        # Filtrar el texto extraído para encontrar nombres y montos
+        for line in results:
+            # Busca posibles nombres de oferentes (generalmente en mayúsculas)
+            if re.match(r"^[A-ZÑ\s]+\b", line):  # Ejemplo: "CALDETEC INGENIERÍA SRL"
+                offerors.append(line.strip())
+
+            # Busca montos de oferta (números grandes con puntos)
+            elif re.search(r"\d+\.\d+\.\d+", line):  # Ejemplo: "98.641.138.385"
+                amounts.append(line.strip())
 
     # Crear una tabla con los datos extraídos
     data = {'Nombre Oferente': offerors, 'Monto Total de la Oferta': amounts}
@@ -53,8 +71,11 @@ uploaded_file = st.file_uploader("Sube un archivo PDF", type=["pdf"])
 if uploaded_file:
     st.info("Procesando el archivo PDF...")
 
-    # Extraer nombres de oferentes y montos totales
-    bids_df = extract_bids_from_pdf(uploaded_file)
+    # Convertir el PDF a imágenes
+    images = extract_images_from_pdf(uploaded_file)
+
+    # Extraer nombres de oferentes y montos totales desde las imágenes
+    bids_df = extract_bids_from_images(images)
 
     # Mostrar los resultados
     st.success("Datos extraídos exitosamente.")
