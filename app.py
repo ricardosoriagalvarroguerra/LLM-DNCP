@@ -1,17 +1,25 @@
 import os
 import streamlit as st
-import fitz  # PyMuPDF
 import easyocr
 import pandas as pd
 import numpy as np
 import re
 from groq import Groq
 from PIL import Image
+import fitz  # PyMuPDF
 import io
 
 # Configuración de la página
 st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
 
+# Mostrar icono en la cabecera
+def icon(emoji: str):
+    """Muestra un emoji como icono al estilo Notion."""
+    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
+
+icon("🤖")
+
+st.subheader("Chatbot con PDF y GroqCloud")
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
 GROQ_API_KEY = "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"
@@ -44,8 +52,8 @@ def extract_images_from_pdf(file):
     return images
 
 
-def extract_bids_from_images(images):
-    """Extrae nombres de oferentes y montos totales de ofertas desde imágenes."""
+def extract_data_from_images(images):
+    """Extrae nombres de oferentes y montos totales desde imágenes."""
     # Variables para almacenar los datos extraídos
     offerors = []
     amounts = []
@@ -59,19 +67,24 @@ def extract_bids_from_images(images):
 
         # Filtrar el texto extraído para encontrar nombres y montos
         for line in results:
-            # Busca posibles nombres de oferentes (generalmente en mayúsculas)
+            # Buscar nombres de oferentes (mayúsculas)
             if re.match(r"^[A-ZÑ\s]+\b", line):  # Ejemplo: "CALDETEC INGENIERÍA SRL"
                 offerors.append(line.strip())
 
-            # Busca montos de oferta (números grandes con puntos)
-            elif re.search(r"\d+\.\d+\.\d+", line):  # Ejemplo: "98.641.138.385"
+            # Buscar montos de oferta (números grandes con puntos)
+            elif re.search(r"\d+\.\d+\.\d+", line):  # Ejemplo: "225.124.186.771"
                 amounts.append(line.strip())
+
+    # Garantizar que ambas listas tengan la misma longitud
+    max_length = max(len(offerors), len(amounts))
+
+    # Rellenar las listas más cortas con valores vacíos
+    offerors.extend([""] * (max_length - len(offerors)))
+    amounts.extend([""] * (max_length - len(amounts)))
 
     # Crear una tabla con los datos extraídos
     data = {'Nombre Oferente': offerors, 'Monto Total de la Oferta': amounts}
-    df = pd.DataFrame(data)
-
-    return df
+    return pd.DataFrame(data)
 
 
 # Subir archivo PDF
@@ -84,12 +97,12 @@ if uploaded_file:
     images = extract_images_from_pdf(uploaded_file)
 
     # Extraer nombres de oferentes y montos totales desde las imágenes
-    bids_df = extract_bids_from_images(images)
+    data_df = extract_data_from_images(images)
 
     # Mostrar los resultados
     st.success("Datos extraídos exitosamente.")
     st.subheader("Tabla Estructurada de Resultados")
-    st.table(bids_df)
+    st.table(data_df)
 
 # Selección del modelo de GroqCloud
 models = {
