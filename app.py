@@ -3,6 +3,7 @@ import streamlit as st
 import fitz  # PyMuPDF
 import easyocr
 import pandas as pd
+import numpy as np
 import re
 from groq import Groq
 from PIL import Image
@@ -10,6 +11,7 @@ import io
 
 # Configuración de la página
 st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
+
 
 # Inicializar el cliente de GroqCloud con la clave de API directamente
 GROQ_API_KEY = "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"
@@ -45,8 +47,11 @@ def extract_bids_from_images(images):
     amounts = []
 
     for image in images:
+        # Convertir la imagen (Pillow) a un array de NumPy
+        image_np = np.array(image)
+
         # Realizar OCR en cada imagen
-        results = reader.readtext(image, detail=0)
+        results = reader.readtext(image_np, detail=0)
 
         # Filtrar el texto extraído para encontrar nombres y montos
         for line in results:
