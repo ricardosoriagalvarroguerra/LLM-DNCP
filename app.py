@@ -1,167 +1,139 @@
+import os
 import streamlit as st
-import pandas as pd
 import easyocr
-from PIL import Image
-import requests
-import io
+from pdf2image import convert_from_bytes
+from typing import Generator
+from groq import Groq
+import pandas as pd
 
-# Configuración de la página de Streamlit
-st.set_page_config(
-    page_title="Extractor de Datos de Licitaciones",
-    layout="wide",
-    initial_sidebar_state="expanded",
+# Configuración de la página
+st.set_page_config(page_icon="📄", layout="wide", page_title="Chatbot con PDF y GroqCloud")
+
+# Mostrar icono en la cabecera
+def icon(emoji: str):
+    """Muestra un emoji como icono al estilo Notion."""
+    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
+
+icon("🤖")
+
+st.subheader("Chatbot con PDF y GroqCloud", divider="🌈", anchor=False)
+
+# Inicializar el cliente de GroqCloud
+client = Groq(
+    api_key=st.secrets["GROQ_API_KEY"],
 )
 
-# Título de la aplicación
-st.title("Extractor de Datos de Licitaciones usando OCR en Imágenes")
+# Inicializar EasyOCR
+reader = easyocr.Reader(['es'])
 
-# Instrucciones para el usuario
-st.markdown("""
-Esta aplicación te permite subir una imagen que contiene información sobre licitaciones. 
-El texto de la imagen será extraído y procesado para extraer datos específicos de cada OFERENTE y el monto total pagado por oferente, organizándolos en una tabla.
-""")
+# Inicializar el historial del chat
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# **Configuración de la API de Hugging Face**
-# Reemplaza estos valores con tus propias credenciales de Hugging Face
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
-HUGGINGFACE_API_TOKEN = "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"  # Reemplaza con tu token de Hugging Face
+if "extracted_text" not in st.session_state:
+    st.session_state.extracted_text = None
 
-# Encabezados para la API de Hugging Face
-headers = {"Authorization": f"Bearer {HUGGINGFACE_API_TOKEN}"}
+# Layout para subir PDFs y mostrar chat
+uploaded_file = st.file_uploader("Sube un archivo PDF", type=["pdf"])
 
-# Inicializar el lector de EasyOCR
-@st.cache_resource
-def initialize_easyocr():
-    return easyocr.Reader(['es'])  # 'es' para español
+if uploaded_file:
+    st.info("Procesando el archivo PDF...")
 
-reader = initialize_easyocr()
+    # Convertir PDF a imágenes y extraer texto
+    images = convert_from_bytes(uploaded_file.read())
+    extracted_text = ""
+    for image in images:
+        result = reader.readtext(image)
+        page_text = " ".join([text[1] for text in result])
+        extracted_text += page_text + "\n"
 
-# Función para hacer OCR con EasyOCR
-def extract_text_from_image(image):
-    # Convertir la imagen a RGB si es necesario
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
-    # Convertir la imagen a un array de bytes
-    img_bytes = io.BytesIO()
-    image.save(img_bytes, format='PNG')
-    img_bytes = img_bytes.getvalue()
-    # Realizar OCR
-    result = reader.readtext(img_bytes, detail=0, paragraph=True)
-    return '\n'.join(result)
+    st.success("Texto extraído exitosamente.")
+    st.session_state.extracted_text = extracted_text
+    st.text_area("Texto extraído:", extracted_text, height=200)
 
-# Función para realizar la solicitud a la API de Hugging Face
-def query(payload):
-    try:
-        response = requests.post(HUGGINGFACE_API_URL, headers=headers, json=payload)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            st.error(f"Error en la solicitud a Hugging Face: {response.status_code}")
-            st.write(response.text)
-            return None
-    except Exception as e:
-        st.error(f"Ocurrió un error al realizar la solicitud a Hugging Face: {e}")
-        return None
+# Selección del modelo
+models = {
+    "llama3-8b-8192": {"name": "LLaMA3-8b-8192", "tokens": 8192, "developer": "Meta"},
+}
 
-# Función para generar respuesta usando GPT-Neo con prompt fijo
-def extract_oferentes_y_ofertas(text):
-    prompt = f"""
-    Extrae el nombre de cada observación del texto de todos los Oferentes o variaciones del nombre de la columna.
-    Extrae el Monto total de oferta que son numeros que esta en la columna o seguido del texto Garantia de Mantenimiento de Oferta.
-    crea una tabla con la columna Oferentes y el Monto total de la Oferta.
+model_option = st.selectbox(
+    "Elige un modelo de GroqCloud:",
+    options=list(models.keys()),
+    format_func=lambda x: models[x]["name"],
+    index=0
+)
 
-    Texto:
-    {text}
-    """
+max_tokens = st.slider(
+    "Tokens máximos:",
+    min_value=512,
+    max_value=models[model_option]["tokens"],
+    value=2048,
+    step=512,
+)
 
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 500,
-            "temperature": 0.3,
-            "top_p": 0.95,
-            "top_k": 50,
-            "do_sample": False
-        }
-    }
+# Mostrar historial del chat
+for message in st.session_state.messages:
+    avatar = '🤖' if message["role"] == "assistant" else '👨‍💻'
+    with st.chat_message(message["role"], avatar=avatar):
+        st.markdown(message["content"])
 
-    response = query(payload)
 
-    if response and isinstance(response, list) and "generated_text" in response[0]:
-        return response[0]["generated_text"]
+def generate_chat_responses(chat_completion) -> Generator[str, None, None]:
+    """Generador para manejar las respuestas de Groq API."""
+    for chunk in chat_completion:
+        if chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
+
+
+if prompt := st.chat_input("Escribe tu consulta..."):
+    # Si se ingresó texto como prompt, agregar al historial del chat
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    with st.chat_message("user", avatar='👨‍💻'):
+        st.markdown(prompt)
+
+    # Preparar el texto para enviar a GroqCloud
+    if st.session_state.extracted_text:
+        context = f"Texto del PDF:\n{st.session_state.extracted_text}\n\nUsuario: {prompt}"
     else:
-        st.error("Error en la respuesta del modelo GPT-Neo")
-        return None
+        context = prompt
 
-# Función para convertir el texto estructurado en un DataFrame
-def text_to_dataframe(structured_text):
-    data = []
-    lines = structured_text.strip().split("\n")
-    
-    # Verificar si hay encabezados y omitirlos
-    if lines and ("Oferentes" in lines[0].upper() or "Garantia de Mantenimiento de OFerta" in lines[0].upper()):
-        lines = lines[1:]
-    
-    for line in lines:
-        # Separar por comas, asumiendo que los campos están separados por comas
-        columns = [col.strip() for col in line.split(",")]
-        if len(columns) == 2:  # Ahora solo hay 2 columnas
-            try:
-                oferente = columns[0]
-                # Convertir ofertas a float, eliminando símbolos como '$' y comas
-                ofertas = float(columns[1].replace('$', '').replace(',', '').strip())
-                data.append([oferente, ofertas])
-            except ValueError:
-                st.warning(f"Formato incorrecto en la línea: {line}")
-    if not data:
-        st.warning("No se encontraron datos estructurados válidos en el texto extraído.")
-        return pd.DataFrame()
-    df = pd.DataFrame(data, columns=[
-        "OFERENTE", 
-        "OFERTAS"
-    ])
-    return df
-
-# Interfaz para subir archivos de imagen
-image_file = st.file_uploader("Sube una imagen con texto", type=["jpg", "png", "jpeg"])
-
-if image_file:
+    # Llamar a GroqCloud para generar respuesta
     try:
-        # Abrir la imagen con PIL
-        image = Image.open(image_file)
-        st.image(image, caption='Imagen Subida', use_column_width=True)
+        chat_completion = client.chat.completions.create(
+            model=model_option,
+            messages=[
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages
+            ],
+            max_tokens=max_tokens,
+            stream=True,
+        )
 
-        # Aplicar OCR a la imagen
-        with st.spinner("Extrayendo texto de la imagen..."):
-            extracted_text = extract_text_from_image(image)
-        
-        st.subheader("Texto Extraído:")
-        st.write(extracted_text if extracted_text else "No se pudo extraer texto de la imagen.")
+        # Generar respuestas dinámicas
+        with st.chat_message("assistant", avatar="🤖"):
+            chat_responses_generator = generate_chat_responses(chat_completion)
+            full_response = st.write_stream(chat_responses_generator)
 
-        # Procesar el texto extraído con GPT-Neo
-        if extracted_text:
-            with st.spinner("Procesando el texto para extraer OFERENTE y OFERTAS..."):
-                structured_data = extract_oferentes_y_ofertas(extracted_text)
-            
-            if structured_data:
-                st.subheader("Datos Extraídos:")
-                st.write(structured_data)
-                
-                # Convertir el texto estructurado a un DataFrame
-                df = text_to_dataframe(structured_data)
-                
-                if not df.empty:
-                    # Mostrar la tabla en Streamlit
-                    st.dataframe(df)
-
-                    # Descargar los datos como archivo CSV
-                    csv = df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📥 Descargar resultados en CSV",
-                        data=csv,
-                        file_name="datos_licitacion.csv",
-                        mime="text/csv"
-                    )
     except Exception as e:
-        st.error(f"Ocurrió un error al procesar la imagen: {e}")
+        st.error(f"Error al procesar: {e}", icon="🚨")
 
+    # Guardar la respuesta completa en el historial
+    if isinstance(full_response, str):
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
+    else:
+        combined_response = "\n".join(str(item) for item in full_response)
+        st.session_state.messages.append({"role": "assistant", "content": combined_response})
+
+# Tabla estructurada
+if st.session_state.extracted_text:
+    st.subheader("Tabla Estructurada de Resultados")
+    # Ejemplo simple para crear tabla
+    # Ajustar según la lógica de tu prompt o extracción específica
+    data = {
+        "Campo 1": ["Valor A1", "Valor A2"],
+        "Campo 2": ["Valor B1", "Valor B2"],
+        "Campo 3": ["Valor C1", "Valor C2"],
+    }
+    df = pd.DataFrame(data)
+    st.table(df)
